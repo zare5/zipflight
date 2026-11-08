@@ -145,7 +145,7 @@ python -m zipflight release.zip --target portable --fail-on warning
 GitHub Actions 中，在**构建出 ZIP 之后**加入：
 
 ```yaml
-- uses: actions/setup-python@v5
+- uses: actions/setup-python@v7.1.0
   with:
     python-version: '3.12'
 - run: python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"

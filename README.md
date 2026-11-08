@@ -152,7 +152,7 @@ python -m zipflight release.zip --target portable --fail-on warning
 For GitHub Actions, add a check **after your build produces the ZIP**:
 
 ```yaml
-- uses: actions/setup-python@v5
+- uses: actions/setup-python@v7.1.0
   with:
     python-version: '3.12'
 - run: python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"

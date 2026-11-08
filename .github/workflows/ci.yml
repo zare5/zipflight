@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  compatibility:
+    name: Test (Linux, Python 3.10)
+    runs-on: ubuntu-24.04
+    # Python 3.10 is no longer cached on current hosted runner images.
+    container: python:3.10.22-bookworm@sha256:f72a86806f92fe13a49f49aeca1db0b19ea5cf4a0470b842a01b0e14314945b8
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests -v
+      - run: python tools/build_zipapp.py
+      - run: python dist/zipflight.pyz --version
+
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -16,14 +28,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Keep the oldest supported Python on an established runner image.
-          - {os: ubuntu-24.04, python: '3.10'}
           - {os: ubuntu-latest, python: '3.14'}
           - {os: windows-latest, python: '3.13'}
           - {os: macos-latest, python: '3.13'}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install .
@@ -32,29 +42,29 @@ jobs:
       - run: python dist/zipflight.pyz --version
 
   package:
-    needs: test
+    needs: [test, compatibility]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.13'
       - run: python -m pip install build twine
       - run: python -m build
       - run: python -m twine check dist/*
       - run: python tools/build_zipapp.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: python-distributions
           path: dist/*
           if-no-files-found: error
 
   windows:
-    needs: test
+    needs: [test, compatibility]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.13'
       - run: python -m pip install . pyinstaller
@@ -68,7 +78,7 @@ jobs:
           $report = $result | ConvertFrom-Json
           if ($report.summary.errors -lt 1) { throw 'Expected demo errors.' }
           exit 0
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-executable
           path: |
