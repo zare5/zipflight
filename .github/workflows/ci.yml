@@ -16,7 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: ubuntu-latest, python: '3.10'}
+          # Keep the oldest supported Python on an established runner image.
+          - {os: ubuntu-24.04, python: '3.10'}
           - {os: ubuntu-latest, python: '3.14'}
           - {os: windows-latest, python: '3.13'}
           - {os: macos-latest, python: '3.13'}
