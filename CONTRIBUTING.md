@@ -32,3 +32,8 @@ python tools/build_zipapp.py
 CI tests Linux, Windows, and macOS, then builds the distributions and Windows
 console executable. Release files are attached to GitHub Releases; the project
 does not currently publish to PyPI.
+
+On Windows, `python -m pip install pyinstaller` followed by
+`python tools/build_windows.py` builds the console executable and copies the
+actual runtime/bootloader notices to `dist/THIRD_PARTY_NOTICES.txt`. Ship that
+notice file alongside the executable; it is also embedded in the executable.
