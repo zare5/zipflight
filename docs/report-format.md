@@ -41,15 +41,20 @@ characters**. Oversized or unsupported metadata stops the scan with exit 2;
 there is no partial passing result. API callers may set `max_entries` and
 `max_metadata_bytes`; the latter also sets the expanded namespace budget.
 
-The report retains the first **2,000 findings** plus a `report-truncated`
-warning when needed. Summary counts include omitted findings. Text and Markdown
-show at most 100 retained findings and six paths per finding. JSON contains all
-retained findings and their paths. Split a very noisy archive to review all
-details.
+The report retains up to **2,000 findings**, prioritizing errors, then warnings,
+then informational notes. Detection order is preserved within each severity.
+A later error can replace an earlier note when the report is full. A
+`report-truncated` warning is added when needed; summary counts include omitted
+findings. Text and Markdown show at most 100 retained findings, errors first,
+and six paths per finding. JSON contains all retained findings and their paths.
+Split a very noisy archive to review all details.
 
 Common ZIP64 archives and ZIPs with prepended stubs are supported. Split/multi-disk
 archives, ZIP64 extensible end records, trailing data after the ZIP end record,
 and unrecognized central-directory record types are outside the initial scope.
+
+Inputs must be regular files. Pipes and devices are rejected rather than read
+as streaming ZIP input; POSIX named pipes are opened without waiting for a writer.
 
 The scanner seeks to ZIP directory metadata and the end-record search region.
 Those reads may overlap nearby data; it never opens or decompresses member

@@ -2,50 +2,40 @@
   <img src="docs/assets/banner.svg" alt="Zipflight — 在发出 ZIP 前，检查文件名兼容性" width="100%">
 </p>
 
-<p align="center"><a href="README.md">English</a> · <a href="#快速使用">快速使用</a> · <a href="#检查什么">检查项目</a> · <a href="docs/alternatives.md">同类工具</a></p>
+<p align="center"><a href="README.md">English</a> · <a href="#快速试用">快速试用</a> · <a href="#检查内容">检查内容</a> · <a href="#报告和-ci">报告与 CI</a> · <a href="#同类工具">同类工具</a></p>
 
-# Zipflight — 发出 ZIP 前，先检查一下
+# Zipflight — ZIP 跨平台兼容性检查
 
-**提前找出 ZIP 中可能无法解压、互相覆盖，或换个系统就改变含义的文件名。**
+**提前找出 ZIP 中换到 Windows、macOS 或 Linux 后，可能无法解压或互相覆盖的文件名。**
 
-ZIP 格式有效，不代表里面的文件名适合每个平台。例如 `CON.txt`、同时存在的 `Readme.md` 和 `README.md`，或者一个名为 `assets` 的文件加上 `assets/logo.png`。Zipflight 读取压缩包的元数据，在你发布版本或发送文件前解释这些问题。
+有效的 ZIP 里也可能存在 `CON.txt`、同时出现的 `Readme.md` 和 `README.md`，或者一个名为 `assets` 的文件加上 `assets/logo.png`。Zipflight 会解释这些冲突，适合在发布版本或向客户发送文件之前运行。
 
-```sh
-zipflight release.zip
-```
+工具离线运行，检查压缩包元数据，输出带有处理建议的终端文本、Markdown 或 JSON 报告。**不会解压或修改压缩包。** Python 版本仅使用标准库。
 
-- **把冲突双方放在一起展示**，附上原因和处理建议。
-- **指定目标平台**：Windows、macOS、Linux，或默认的保守跨平台检查。扫描结果不依赖当前运行系统。
-- **输出终端文本、Markdown 或 JSON**，方便查看、贴入 issue 或接入 CI。
-- **完全本地运行**：不上传、无账户、无遥测、无运行时第三方依赖。不解压、不重命名，也不处理条目的文件内容。
+## 快速试用
 
-## 适合什么时候用？
+不需要安装 Python 包或 Git。下载对应版本后，**在下载文件所在目录打开终端**。
 
-| 场景 | 可以检查的内容 |
-| --- | --- |
-| 在 Linux 上打包，发布给 Windows 用户。 | 保留设备名、非法字符、大小写冲突和路径长度。 |
-| Mac 上正常的 ZIP，到客户的 Windows 上打不开。 | 平台相关文件名、旧编码标记和解压要求。 |
-| 解压后文件少了，或互相覆盖。 | 重复条目、等价名称、文件与目录冲突。 |
-| 希望发布前发现这些问题。 | 本地运行，或把检查加入 CI。 |
-
-Zipflight 是一个**跨平台兼容性预检工具**。它不修复文件名、不验证文件内容或 CRC、不查杀恶意软件，也不保证压缩包可以安全解压。通过检查只表示已实现的元数据规则没有发现问题，不代表所有解压软件都能正确处理。
-
-## 快速使用
-
-需要 **Python 3.10+**。下面的安装方式还需要 Git：
+**有 Python 3.10+ · Windows、macOS、Linux：** 下载 [zipflight.pyz](https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight.pyz)。
 
 ```sh
-python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"
-zipflight --demo
-zipflight "path/to/archive.zip"
+python zipflight.pyz --demo
 ```
 
-演示创建一个临时压缩包，故意放入有问题的文件名，扫描后自动清理，退出码为 **1**。不会解压这些条目。
+如果系统使用 `python3` 命令，请将示例中的 `python` 替换为 `python3`。
 
-`zipflight --demo` 的实际输出节选（省略了其他检查结果）：
+**Windows x64 · 没装 Python：** 下载 [zipflight-windows-x64.exe](https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-windows-x64.exe)，在 PowerShell 运行：
+
+```powershell
+.\zipflight-windows-x64.exe --demo
+```
+
+演示会扫描一个故意包含问题的临时 ZIP，结束后自动清理，退出码 **1 是预期结果**。不会解压演示条目。Windows 可执行文件是未签名的命令行程序。
+
+实际演示输出节选，省略了其他检查结果：
 
 ```text
-Zipflight 0.1.0 | demo.zip
+Zipflight 0.1.1 | demo.zip
 FAIL | 7 entries | target: portable
 
 ERROR [windows-reserved-name] A path component is a reserved Windows device name.
@@ -58,48 +48,41 @@ ERROR [file-directory-conflict] This path must be both a file and a directory (p
   Fix: Rename the file or the directory tree so both can exist.
 ```
 
-**没有 Git：** 从 [Releases](https://github.com/zare5/zipflight/releases/latest) 下载 `zipflight-0.1.0-py3-none-any.whl`，然后运行：
+把 `--demo` 换成 ZIP 路径，就能检查自己的文件：
 
 ```sh
-python -m pip install zipflight-0.1.0-py3-none-any.whl
+python zipflight.pyz "path/to/archive.zip" --target windows
 ```
 
-**不想安装 Python 包：** 从同一个发布页面下载 `zipflight.pyz`：
+Windows 可执行文件接受相同参数。所有下载文件和校验和见[发布页面](https://github.com/zare5/zipflight/releases/tag/v0.1.1)。
+
+### 安装为常用命令
+
+如果会经常使用，可以通过 Python 3.10+ 安装已发布的 wheel，不需要 Git：
 
 ```sh
-python zipflight.pyz --demo
-python zipflight.pyz archive.zip
+python -m pip install "https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-0.1.1-py3-none-any.whl"
+python -m zipflight archive.zip
 ```
 
-**Windows 上没有 Python：** 下载 `zipflight-windows-x64.exe`，在 PowerShell 中运行：
+安装后也可以使用 `zipflight` 命令。下文采用这个较短的写法。目前尚未发布到 PyPI。
 
-```powershell
-.\zipflight-windows-x64.exe --demo
-.\zipflight-windows-x64.exe .\archive.zip
-```
+## 检查内容
 
-Windows 可执行文件是未签名的命令行程序，需要在终端里运行。目前尚未发布到 PyPI，请使用上述安装方式。
+| 问题 | 压缩包条目示例 |
+| --- | --- |
+| Windows 保留设备名、非法字符、结尾的点或空格 | `CON.txt`、`notes:final.txt`、`report.` |
+| 大小写、Unicode 与路径别名冲突 | `Readme.md` 与 `README.md`；`café.txt` 的两种 Unicode 写法 |
+| 重复条目，以及文件与目录冲突 | 两个 `data.csv`；`assets` 与 `assets/logo.png` |
+| 绝对路径、上级目录引用、含义不明确的分隔符 | `../outside.txt`、`/root/file`、反斜杠 |
+| 文件名和目标路径长度 | 较长的解压目录加上深层文件夹 |
+| 解压软件兼容性和元数据提示 | 加密、符号链接、特殊压缩方法、旧编码、系统杂项 |
 
-## 检查什么？
+还会检查控制字符、双向文本格式字符和极高的声明膨胀比例。详见[全部规则与严重程度](docs/checks.md)。
 
-以下只是压缩包条目示例，不会在你的电脑上创建这些文件。
+### 目标平台和路径长度
 
-| 检查 | 示例 | 可能的问题 |
-| --- | --- | --- |
-| Windows 文件名 | `CON.txt`、`notes:final.txt`、`report. ` | 保留设备名、非法字符、结尾的点或空格。 |
-| 大小写与 Unicode 冲突 | `Readme.md` 与 `README.md`；`café.txt` 的两种 Unicode 写法 | 不同条目可能落到同一个目标文件。 |
-| 重复条目 | 两个都叫 `data.csv` 的条目 | 不同解压程序可能保留不同副本。 |
-| 文件与目录冲突 | `assets` 与 `assets/logo.png` | 同一个位置不能同时是文件和父目录。 |
-| 路径结构 | `../outside.txt`、绝对路径、反斜杠 | 路径可能被拒绝或被不同方式解释。 |
-| 长度限制 | 深层目录加上较长的解压目标路径 | 部分 Windows 工具仍受旧版 260 单位路径限制。 |
-| 解压要求 | 加密、符号链接、特殊压缩方法 | 解压软件的支持程度和行为不同。 |
-| 其他元数据 | 旧编码的非 ASCII 文件名、系统杂项、极高的声明膨胀比例 | 提供排查和分享前的参考信息。 |
-
-还会提示控制字符和双向文本格式字符，它们可能让文件名的显示具有误导性。
-
-完整的问题代码、严重程度和适用平台，见[检查规则参考](docs/checks.md)。
-
-### 选择接收方平台
+默认的 `portable` 会综合检查各平台的兼容性问题。也可以按接收方系统选择：
 
 ```sh
 zipflight archive.zip --target windows
@@ -107,68 +90,65 @@ zipflight archive.zip --target macos
 zipflight archive.zip --target linux
 ```
 
-默认的 `--target portable` 综合使用较保守的平台规则。这些规则不是对 NTFS、APFS、ext4 或具体解压程序的完整模拟。Unicode 和大小写碰撞采用保守的 NFC/casefold 近似判断，实际文件系统规则可能不同。
-
-### 为解压目录预留长度
-
-Windows 旧版路径检查默认给解压目标目录预留 **40 个 UTF-16 代码单元**。如果接收方通常会解压到较深的目录，可以增加估计值：
+Windows 路径长度检查默认给解压目录预留 **40 个 UTF-16 代码单元**，不含末尾分隔符。如果接收方通常解压到较深的文件夹，可以增加估计值：
 
 ```sh
-zipflight release.zip --target windows --root-length 80
+zipflight archive.zip --target windows --root-length 80
 ```
 
-`--root-length` 表示不含末尾分隔符的目标目录长度。Zipflight 会另加一个分隔符，再加压缩包内的条目路径长度。它不检查真实文件系统，也不知道最终解压位置；支持长路径的工具可能不受旧限制影响。
+工具会另加一个分隔符和压缩包内的路径长度。这是针对旧版路径限制的提示；支持长路径的解压软件可能不受它影响。
 
-## 报告和自动化
-
-通过终端重定向保存报告：
+## 报告和 CI
 
 ```sh
 zipflight archive.zip --format markdown > zip-report.md
 zipflight archive.zip --format json > zip-report.json
+zipflight archive.zip --fail-on warning
 ```
 
-JSON 包含 `schema_version`、汇总计数，以及每条结果的稳定代码、严重程度、相关路径、解释和建议。字段说明和错误响应见[报告格式参考](docs/report-format.md)。报告会包含文件名，分享前请检查。
-
-默认情况下，警告会显示，但不会让命令失败。发布检查可以使用更严格的 `--fail-on warning`：
-
-```sh
-python -m zipflight release.zip --target portable --fail-on warning
-```
+默认只在发现错误时返回失败。加上 `--fail-on warning`，警告也会导致失败，包括较保守的大小写和 Unicode 碰撞提示。
 
 | 退出码 | 含义 |
 | --- | --- |
 | `0` | 没有达到所选失败阈值的问题。 |
-| `1` | 发现错误，或在 `--fail-on warning` 下发现警告。 |
+| `1` | 扫描完成，发现错误；或者在 `--fail-on warning` 下发现警告。 |
 | `2` | 无法完成扫描，或命令参数无效。 |
 
-GitHub Actions 中，在**构建出 ZIP 之后**加入：
+因此，默认情况下标为 `WARN` 的报告仍会返回 **0**。字段说明、错误响应和输出限制见[报告格式](docs/report-format.md)。报告包含文件名，分享前请检查。
+
+<details>
+<summary>GitHub Actions：在构建 ZIP 后运行检查</summary>
+
+在生成 `dist/release.zip` 的步骤之后加入：
 
 ```yaml
 - uses: actions/setup-python@v7.1.0
   with:
     python-version: '3.12'
-- run: python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"
+- run: python -m pip install "https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-0.1.1-py3-none-any.whl"
 - run: python -m zipflight dist/release.zip --target portable --fail-on warning
 ```
 
-## 范围和同类工具
+</details>
 
-Zipflight 读取中央目录及相关压缩包元数据，不验证压缩内容、本地文件头一致性、校验和、磁盘空间、权限或嵌套压缩包。大小和膨胀比例来自压缩包自行声明的数值，不是真实内容测量。超出元数据限制的大型压缩包可能被拒绝扫描，不会被当作部分通过。条目数量、元数据大小、路径深度和报告条数的具体限制，见[边界与不支持的结构](docs/report-format.md#bounds-and-unsupported-structures)。
+## 功能边界
 
-验证文件内容完整性，可使用 `unzip -t` 或压缩软件。处理不可信压缩包，应选择针对安全解压设计的工具。文件名修复、编码转换和源码目录检查，可参考[同类工具对比](docs/alternatives.md)。
+**这是元数据检查，不是完整性测试，也不是安全保证。** 它不验证文件内容、CRC、本地文件头一致性、嵌套压缩包、剩余磁盘空间或实际解压结果，也不修复文件名。大小与膨胀比例来自压缩包的声明，没有经过内容验证。
 
-[调研记录](docs/research.md)列出了相关问题和选择这个小范围功能的原因。它们是需求线索，不是“市场上没人做过”的证明。
+大小写和 Unicode 碰撞规则是对文件系统行为的近似判断，不会完整模拟具体系统或解压软件。没有发现问题，只表示已实现的规则未触发。[已记录的边界](docs/report-format.md#bounds-and-unsupported-structures)限制了条目数量、元数据大小、路径深度和报告条数；元数据过大或结构不受支持时，扫描会停止。
 
-## 开发
+## 同类工具
 
-```sh
-git clone https://github.com/zare5/zipflight.git
-cd zipflight
-python -m unittest discover -s tests -v
-python -m zipflight --demo
-```
+| 如果你需要…… | 可以考虑 |
+| --- | --- |
+| 同时检查文件夹、Git 路径和 ZIP 的兼容性 | [Treeport](https://github.com/rad1092/treeport)，是功能有较多重合、支持更多输入类型的直接替代方案。 |
+| 预览或应用支持的 ZIP 文件名、编码修复 | [zipkirei](https://github.com/yuk7/zipkirei)。 |
+| 检查压缩内容和 CRC | `unzip -t`，或压缩软件的完整性测试。 |
 
-发现误报或漏报，可以提交目标平台、问题代码和最小文件名列表。不需要上传私人压缩包。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+Zipflight 聚焦于**分享或发布本地 ZIP 前的检查报告**，实现为一个小型 Python 工具。详见[完整对比](docs/alternatives.md)和[需求调研](docs/research.md)。
 
-使用 MIT 许可证，见 [LICENSE](LICENSE)。
+## 参与改进
+
+发现漏报或误报，可以[提交 issue](https://github.com/zare5/zipflight/issues/new/choose)，提供目标平台、问题代码和最小文件名列表。不需要上传私人压缩包。
+
+[开发与测试](CONTRIBUTING.md) · [更新记录](CHANGELOG.md) · [MIT 许可证](LICENSE)

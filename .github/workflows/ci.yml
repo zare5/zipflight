@@ -53,6 +53,7 @@ jobs:
       - run: python -m build
       - run: python -m twine check dist/*
       - run: python tools/build_zipapp.py
+      - run: python tools/smoke_artifacts.py --wheel dist/zipflight-*-py3-none-any.whl --zipapp dist/zipflight.pyz
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: python-distributions
@@ -70,14 +71,7 @@ jobs:
       - run: python -m pip install . pyinstaller
       - run: python tools/build_windows.py
       - run: ./dist/zipflight-windows-x64.exe --version
-      - name: Smoke test executable with deliberately failing demo
-        shell: pwsh
-        run: |
-          $result = & ./dist/zipflight-windows-x64.exe --demo --format json
-          if ($LASTEXITCODE -ne 1) { throw 'Demo must exit 1 for findings.' }
-          $report = $result | ConvertFrom-Json
-          if ($report.summary.errors -lt 1) { throw 'Expected demo errors.' }
-          exit 0
+      - run: python tools/smoke_artifacts.py --exe dist/zipflight-windows-x64.exe
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-executable

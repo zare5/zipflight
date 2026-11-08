@@ -9,50 +9,40 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-82e4c4" alt="MIT license"></a>
 </p>
 
-<p align="center"><a href="README.zh-CN.md">简体中文</a> · <a href="#try-it">Try it</a> · <a href="#what-it-finds">Checks</a> · <a href="docs/alternatives.md">Alternatives</a></p>
+<p align="center"><a href="README.zh-CN.md">简体中文</a> · <a href="#try-it">Try it</a> · <a href="#what-it-checks">Checks</a> · <a href="#reports-and-ci">Reports &amp; CI</a> · <a href="#related-tools">Alternatives</a></p>
 
-# Zipflight — check a ZIP before you ship it
+# Zipflight — ZIP portability checker
 
-**Find filenames that may fail, collide, or change meaning when a ZIP is extracted on another operating system.**
+**Catch filenames that may fail or overwrite one another when a ZIP moves between Windows, macOS, and Linux.**
 
-A ZIP can be valid and still contain `CON.txt`, both `Readme.md` and `README.md`, or a file named `assets` alongside `assets/logo.png`. Those names do not have the same meaning on every filesystem. Zipflight checks the archive's metadata and explains the likely problems before you send it to someone else.
+A valid ZIP can contain `CON.txt`, both `Readme.md` and `README.md`, or a file named `assets` alongside `assets/logo.png`. Zipflight explains these conflicts before you publish a release or send an archive to a client.
 
-```sh
-zipflight release.zip
-```
-
-- **See the conflicting names together**, with an explanation and a suggested next step.
-- **Check for Windows, macOS, Linux, or a conservative portable baseline.** Results do not depend on the OS running the scan.
-- **Use the result anywhere:** readable terminal output, Markdown for an issue, or JSON for automation.
-- **Keep everything local.** No uploads, accounts, telemetry, or runtime dependencies. It does not extract, rename, or decompress your files.
-
-## When is it useful?
-
-| Situation | What to check |
-| --- | --- |
-| You publish ZIP releases from Linux for Windows users. | Device names, invalid characters, case collisions, and path lengths. |
-| A client says a ZIP opens on your Mac but fails on their PC. | Platform-sensitive names, legacy encoding flags, and extraction requirements. |
-| Files disappear or overwrite one another after extraction. | Duplicate entries, equivalent names, and file/directory conflicts. |
-| You want to catch these problems before a release goes out. | Run a local check or make it a CI step. |
-
-Zipflight is a **portability preflight**, not a general archive manager. It does not repair names, test file contents or CRCs, detect malware, or certify that an archive is safe to extract. A clean report means no implemented metadata checks fired—not that every extractor will accept the archive.
+It runs offline, reads archive metadata, and gives you actionable text, Markdown, or JSON reports. **It never extracts or changes your archive.** The Python version uses only the standard library.
 
 ## Try it
 
-Requires **Python 3.10+**. This installation method also needs Git:
+No package installation or Git required. Download the file for your environment, then open a terminal **in the folder containing the download**.
+
+**Python 3.10+ · Windows, macOS, Linux:** download [zipflight.pyz](https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight.pyz).
 
 ```sh
-python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"
-zipflight --demo
-zipflight "path/to/archive.zip"
+python zipflight.pyz --demo
 ```
 
-The demo creates a temporary archive with deliberately problematic names and removes it after the scan. It never extracts those entries. It exits **1**, so you can also see how a failed check behaves in automation.
+Use `python3` instead of `python` if that is your system's Python command.
 
-An excerpt from `zipflight --demo` (other findings omitted):
+**Windows x64 · no Python needed:** download [zipflight-windows-x64.exe](https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-windows-x64.exe), then use PowerShell:
+
+```powershell
+.\zipflight-windows-x64.exe --demo
+```
+
+The demo scans a temporary ZIP with deliberate problems, removes it afterwards, and exits **1**. This is expected. It never extracts the example entries. The Windows executable is an unsigned console program.
+
+Actual demo output, with other findings omitted:
 
 ```text
-Zipflight 0.1.0 | demo.zip
+Zipflight 0.1.1 | demo.zip
 FAIL | 7 entries | target: portable
 
 ERROR [windows-reserved-name] A path component is a reserved Windows device name.
@@ -65,48 +55,41 @@ ERROR [file-directory-conflict] This path must be both a file and a directory (p
   Fix: Rename the file or the directory tree so both can exist.
 ```
 
-**Without Git:** download `zipflight-0.1.0-py3-none-any.whl` from [Releases](https://github.com/zare5/zipflight/releases/latest), then install it:
+Replace `--demo` with a ZIP path to check your own archive:
 
 ```sh
-python -m pip install zipflight-0.1.0-py3-none-any.whl
+python zipflight.pyz "path/to/archive.zip" --target windows
 ```
 
-**Without installing a package:** download `zipflight.pyz` from the same release and run:
+The executable accepts the same arguments. All downloads and checksums are on the [release page](https://github.com/zare5/zipflight/releases/tag/v0.1.1).
+
+### Install the command
+
+For repeated use, install the published wheel with Python 3.10+; Git is not needed:
 
 ```sh
-python zipflight.pyz --demo
-python zipflight.pyz archive.zip
+python -m pip install "https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-0.1.1-py3-none-any.whl"
+python -m zipflight archive.zip
 ```
 
-**Windows without Python:** download `zipflight-windows-x64.exe` and run it in PowerShell:
+After installation, `zipflight` is also available as a command. Examples below use that shorter form. There is no PyPI release yet.
 
-```powershell
-.\zipflight-windows-x64.exe --demo
-.\zipflight-windows-x64.exe .\archive.zip
-```
+## What it checks
 
-The Windows executable is an unsigned console application. Run it from a terminal. There is no PyPI release at present; use one of the installation methods above.
+| Problem | Example entries |
+| --- | --- |
+| Windows device names, invalid characters, trailing dots/spaces | `CON.txt`, `notes:final.txt`, `report.` |
+| Case, Unicode, and path aliases | `Readme.md` + `README.md`; two Unicode spellings of `café.txt` |
+| Duplicate entries and file/directory conflicts | Two `data.csv` entries; `assets` + `assets/logo.png` |
+| Absolute paths, traversal, ambiguous separators | `../outside.txt`, `/root/file`, backslashes |
+| Filename and destination-path lengths | A deep folder tree under a long extraction directory |
+| Extractor compatibility and metadata cautions | Encryption, symlinks, unusual compression, legacy encodings, OS junk |
 
-## What it finds
+Control/bidirectional characters and extreme declared expansion ratios also produce findings. See [all checks and severities](docs/checks.md).
 
-Examples below are illustrative archive entries, not files created on your computer.
+### Target profiles and path length
 
-| Check | Example | Why it matters |
-| --- | --- | --- |
-| Windows names | `CON.txt`, `notes:final.txt`, `report. ` | Reserved devices, invalid characters, or trailing dots/spaces. |
-| Case and Unicode collisions | `Readme.md` + `README.md`; two Unicode spellings of `café.txt` | Different archive entries may map to the same destination. |
-| Duplicate entries | Two entries both named `data.csv` | Extractors may keep different copies or overwrite one. |
-| File/directory conflicts | `assets` + `assets/logo.png` | A file cannot also be its own parent directory. |
-| Path structure | `../outside.txt`, absolute paths, backslashes | Extractors may reject or reinterpret the path. |
-| Length limits | A deep tree under a long destination directory | Some Windows tools still use the legacy 260-unit path limit. |
-| Extraction requirements | Encryption, symlinks, unusual compression methods | Support and behavior vary by extractor. |
-| Metadata cautions | Legacy non-ASCII names, OS junk, extreme declared expansion | Useful context before sharing or investigating an archive. |
-
-The scanner also flags control characters and bidirectional formatting characters that can make filenames misleading.
-
-See the [complete check reference](docs/checks.md) for finding codes, severities, and which target profiles each rule applies to.
-
-### Choose the destination
+The default `portable` profile combines the platform checks. To focus on a recipient's system:
 
 ```sh
 zipflight archive.zip --target windows
@@ -114,68 +97,65 @@ zipflight archive.zip --target macos
 zipflight archive.zip --target linux
 ```
 
-The default, `--target portable`, applies a conservative combination of the platform checks. These are compatibility profiles, not emulations of NTFS, APFS, ext4, or a particular extraction program. Unicode and case collision checks use a conservative NFC/casefold approximation; actual filesystem rules differ.
-
-### Allow for the extraction folder
-
-The Windows legacy path check assumes a **40 UTF-16-code-unit destination directory** by default. Change the estimate if your recipients extract into a deeper folder:
+Windows path-length warnings assume a destination directory of **40 UTF-16 code units**, excluding its final separator. Use a larger estimate for a deeper folder:
 
 ```sh
-zipflight release.zip --target windows --root-length 80
+zipflight archive.zip --target windows --root-length 80
 ```
 
-`--root-length` measures the destination directory without its final separator. Zipflight adds one separator and the entry's path length. This is an estimate: it does not inspect your filesystem or know the eventual destination, and long-path-aware tools may work beyond the legacy limit.
+Zipflight adds one separator and the entry's path length. The resulting legacy-path warning is advisory; long-path-aware tools may work beyond that limit.
 
-## Reports and automation
-
-Write reports with your shell's normal redirection:
+## Reports and CI
 
 ```sh
 zipflight archive.zip --format markdown > zip-report.md
 zipflight archive.zip --format json > zip-report.json
+zipflight archive.zip --fail-on warning
 ```
 
-JSON reports include a `schema_version`, summary counts, and findings with stable codes, severity, affected paths, explanation, and hint. See the [report format](docs/report-format.md) for the schema and error responses. Filenames appear in reports; review them before sharing.
+Errors fail the command by default. `--fail-on warning` also fails on warnings, including conservative case/Unicode collision checks.
 
-By default, warnings are reported but do not fail the command. Use `--fail-on warning` for a stricter release check:
-
-```sh
-python -m zipflight release.zip --target portable --fail-on warning
-```
-
-| Exit code | Meaning |
+| Exit | Meaning |
 | --- | --- |
-| `0` | No findings reached the chosen failure threshold. |
-| `1` | At least one error, or a warning when `--fail-on warning` is set. |
-| `2` | The scan could not complete, or the command arguments were invalid. |
+| `0` | No finding reached the selected failure threshold. |
+| `1` | The scan completed and found an error, or a warning under `--fail-on warning`. |
+| `2` | The scan could not complete, or arguments were invalid. |
 
-For GitHub Actions, add a check **after your build produces the ZIP**:
+A report marked `WARN` can therefore exit **0** under the default policy. See the [JSON schema, error responses, and output limits](docs/report-format.md). Reports contain filenames; review them before sharing.
+
+<details>
+<summary>GitHub Actions: check a ZIP after your build</summary>
+
+Add these steps after the step that creates `dist/release.zip`:
 
 ```yaml
 - uses: actions/setup-python@v7.1.0
   with:
     python-version: '3.12'
-- run: python -m pip install "git+https://github.com/zare5/zipflight.git@v0.1.0"
+- run: python -m pip install "https://github.com/zare5/zipflight/releases/download/v0.1.1/zipflight-0.1.1-py3-none-any.whl"
 - run: python -m zipflight dist/release.zip --target portable --fail-on warning
 ```
 
-## Scope and alternatives
+</details>
 
-Zipflight reads the central directory and supporting archive metadata. It does not verify compressed payloads, local-header agreement, checksums, available disk space, permissions, or nested archives. Size and expansion findings use values declared by the archive; these are not trusted measurements. Metadata limits can stop unusually large archives rather than produce a partial success. See [bounds and unsupported structures](docs/report-format.md#bounds-and-unsupported-structures) for entry, metadata, path-depth, and report limits.
+## Scope
 
-Use `unzip -t` or your archive manager for content integrity tests. Use an extractor designed for untrusted archives when extraction safety matters. For filename repair, encoding conversion, or source-tree linting, see [the alternatives](docs/alternatives.md).
+**This is a metadata check, not an integrity test or a security guarantee.** It does not verify file contents, CRCs, local-header agreement, nested archives, available disk space, or extraction success. It does not repair names. Declared sizes and expansion ratios are not verified against payloads.
 
-The project grew from recurring cross-platform ZIP and filename problems. [Research notes](docs/research.md) link the reports and explain the narrow scope. They are qualitative evidence of a problem, not a claim of an empty market.
+Case and Unicode comparisons approximate filesystem behavior; the profiles do not emulate a particular filesystem or extractor. A clean report means no implemented check fired. [Documented bounds](docs/report-format.md#bounds-and-unsupported-structures) limit entries, metadata, path depth, and retained findings; oversized or unsupported metadata stops the scan.
 
-## Development
+## Related tools
 
-```sh
-git clone https://github.com/zare5/zipflight.git
-cd zipflight
-python -m unittest discover -s tests -v
-python -m zipflight --demo
-```
+| If you need… | Consider |
+| --- | --- |
+| Portability checks for folders, Git paths, and ZIPs | [Treeport](https://github.com/rad1092/treeport), a direct alternative with broader input support and substantial overlap. |
+| Previewing or applying supported ZIP filename/encoding repairs | [zipkirei](https://github.com/yuk7/zipkirei). |
+| Testing compressed data and CRCs | `unzip -t` or your archive manager's integrity test. |
 
-Found a false positive or a missed collision? Open an issue with the target profile, the finding code, and a minimal list of filenames. You do not need to upload a private archive. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Zipflight's focus is a small Python tool for **local ZIP reports before sharing or releasing**. See the [full comparison](docs/alternatives.md) and [demand research](docs/research.md).
 
-MIT licensed. See [LICENSE](LICENSE).
+## Contribute
+
+Found a missed collision or a false positive? [Open an issue](https://github.com/zare5/zipflight/issues/new/choose) with the target profile, finding code, and minimal filenames. You do not need to upload a private archive.
+
+[Development and tests](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE)

@@ -25,15 +25,24 @@ def md(value):
     return html.escape(display(value), quote=True).replace("|", "&#124;")
 
 
+def preview_issues(report):
+    priority = {"error": 0, "warning": 1, "info": 2}
+    return sorted(report["issues"], key=lambda issue: priority[issue["severity"]])[:100]
+
+
+def quantity(number, noun, plural=None):
+    return f"{number:,} {noun if number == 1 else plural or noun + 's'}"
+
+
 def render_text(report):
     summary = report["summary"]
     lines = [
         f"Zipflight {__version__} | {display(report['archive'])}",
-        f"{report['status'].upper()} | {report['entries']:,} entries | target: {report['target']}",
-        f"{summary['errors']} errors, {summary['warnings']} warnings, {summary['infos']} notes",
+        f"{report['status'].upper()} | {quantity(report['entries'], 'entry', 'entries')} | target: {report['target']}",
+        f"{quantity(summary['errors'], 'error')}, {quantity(summary['warnings'], 'warning')}, {quantity(summary['infos'], 'note')}",
         "",
     ]
-    for issue in report["issues"][:100]:
+    for issue in preview_issues(report):
         lines.append(f"{issue['severity'].upper()} [{issue['code']}] {display(issue['message'])}")
         for path in issue["paths"][:6]:
             lines.append("  " + display(json.dumps(path, ensure_ascii=False)))
@@ -42,7 +51,9 @@ def render_text(report):
         lines.append("  Fix: " + display(issue["hint"]))
         lines.append("")
     if len(report["issues"]) > 100:
-        lines.append("Showing the first 100 findings; --format json includes all retained findings.")
+        lines.append(
+            "Showing up to 100 findings, errors first; --format json includes all retained findings."
+        )
     if any(issue["code"] == "report-truncated" for issue in report["issues"]):
         lines.append(
             "Finding limit reached. Summary includes omitted findings; split the archive for full detail."
@@ -57,14 +68,14 @@ def render_markdown(report):
         "## Zipflight report",
         "",
         f"**{report['status'].upper()}** · <code>{md(report['archive'])}</code> · "
-        f"{report['entries']:,} entries · target: **{report['target']}**",
+        f"{quantity(report['entries'], 'entry', 'entries')} · target: **{report['target']}**",
         "",
-        f"{summary['errors']} errors, {summary['warnings']} warnings, {summary['infos']} notes.",
+        f"{quantity(summary['errors'], 'error')}, {quantity(summary['warnings'], 'warning')}, {quantity(summary['infos'], 'note')}.",
         "",
         "| Severity | Check | Paths | Finding / next step |",
         "| --- | --- | --- | --- |",
     ]
-    for issue in report["issues"][:100]:
+    for issue in preview_issues(report):
         paths = "<br>".join(f"<code>{md(path)}</code>" for path in issue["paths"][:6])
         if len(issue["paths"]) > 6:
             paths += "<br>More paths in JSON report."
@@ -73,7 +84,7 @@ def render_markdown(report):
             f"{md(issue['message'])}<br>{md(issue['hint'])} |"
         )
     if len(report["issues"]) > 100:
-        lines.extend(["", "Only the first 100 findings are shown; JSON includes all retained findings."])
+        lines.extend(["", "Up to 100 findings are shown, errors first; JSON includes all retained findings."])
     if any(issue["code"] == "report-truncated" for issue in report["issues"]):
         lines.extend(
             [

@@ -29,9 +29,16 @@ python -m twine check dist/*
 python tools/build_zipapp.py
 ```
 
+Verify a built wheel and zipapp from a temporary directory, without importing
+the source checkout:
+
+```sh
+python tools/smoke_artifacts.py --wheel dist/zipflight-0.1.1-py3-none-any.whl --zipapp dist/zipflight.pyz
+```
+
 CI tests Linux, Windows, and macOS, then builds the distributions and Windows
-console executable. Release files are attached to GitHub Releases; the project
-does not currently publish to PyPI.
+console executable. CI also runs these artifact checks. Release files are
+attached to GitHub Releases; the project does not currently publish to PyPI.
 
 On Windows, `python -m pip install pyinstaller` followed by
 `python tools/build_windows.py` builds the console executable and copies the

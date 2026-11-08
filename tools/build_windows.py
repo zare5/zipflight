@@ -4,10 +4,13 @@ import importlib.metadata
 import ssl
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 
 def main():
+    if sys.platform != "win32" or sysconfig.get_platform() != "win-amd64":
+        raise RuntimeError("Build zipflight-windows-x64 with a Windows x64 Python interpreter.")
     root = Path(__file__).resolve().parents[1]
     dist = root / "dist"
     dist.mkdir(exist_ok=True)

@@ -93,7 +93,9 @@ def _directory_location(stream: BinaryIO, size: int, limit: int) -> tuple[int, i
 
     locator = _read_at(stream, eocd_offset - 20, 20) if eocd_offset >= 20 else b""
     has_zip64 = locator.startswith(b"PK\x06\x07")
-    requires_zip64 = count == 0xFFFF or cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF
+    # 65,535 is also a valid classic ZIP entry count. The actual directory
+    # records and count are checked below, even when no ZIP64 locator exists.
+    requires_zip64 = cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF
     if requires_zip64 and not has_zip64:
         raise ScanError("ZIP64 metadata is missing its locator.")
     if has_zip64:
@@ -237,7 +239,8 @@ def scan_archive(
 
     ``root_length`` is the UTF-16 length of the destination directory, excluding
     its final separator. Case folding is conservative, not a filesystem emulator.
-    At most 2,000 findings are emitted; summary counts include omitted findings.
+    At most 2,000 findings are retained, prioritizing errors over warnings and
+    notes. Summary counts include omitted findings.
     """
     if target not in _TARGETS:
         raise ScanError(f"Unknown target {target!r}; choose portable, windows, macos, or linux.")
@@ -247,26 +250,42 @@ def scan_archive(
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ScanError(f"{label} must be a positive integer.")
     try:
-        with open(path, "rb") as stream:
-            size = os.fstat(stream.fileno()).st_size
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
+        with os.fdopen(os.open(path, flags), "rb") as stream:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ScanError("The input must be a regular ZIP file, not a pipe, device, or directory.")
+            size = metadata.st_size
             entries = _read_entries(stream, size, max_entries, max_metadata_bytes)
     except ScanError:
         raise
     except (OSError, ValueError, struct.error, OverflowError) as exc:
         raise ScanError(f"Cannot inspect ZIP archive: {exc}") from exc
 
-    issues: list[dict] = []
+    priorities = ("error", "warning", "info")
+    retained: dict[str, list[dict]] = {severity: [] for severity in priorities}
+    retained_count = 0
     counts = {"errors": 0, "warnings": 0, "infos": 0}
     omitted = 0
 
     def add(code: str, severity: str, paths: list[str], message: str, hint: str) -> None:
-        nonlocal omitted
+        nonlocal omitted, retained_count
         counts[{"error": "errors", "warning": "warnings", "info": "infos"}[severity]] += 1
-        item = {"code": code, "severity": severity, "paths": paths, "message": message, "hint": hint}
-        if len(issues) < _MAX_ISSUES:
-            issues.append(item)
+        if retained_count < _MAX_ISSUES:
+            retained_count += 1
         else:
             omitted += 1
+            # Keep the first findings within each severity, but make room for a
+            # later error even if earlier metadata notes filled the report.
+            for lower in reversed(priorities[priorities.index(severity) + 1 :]):
+                if retained[lower]:
+                    retained[lower].pop()
+                    break
+            else:
+                return
+        retained[severity].append(
+            {"code": code, "severity": severity, "paths": paths, "message": message, "hint": hint}
+        )
 
     windows = target in ("portable", "windows")
     unix_names = target in ("portable", "linux", "macos")
@@ -419,18 +438,19 @@ def scan_archive(
                 "Unix metadata marks this member as a special file.",
                 "Check extractor behavior before using device, socket, or FIFO metadata.",
             )
-        if entry.creator == 3:
-            unix_kind = stat.S_IFMT(entry.external >> 16)
-            if (unix_kind in (stat.S_IFREG, stat.S_IFLNK) and entry.directory) or (
-                unix_kind == stat.S_IFDIR and not name.endswith("/")
-            ):
-                add(
-                    "conflicting-file-type",
-                    "warning",
-                    display,
-                    "The filename, DOS attributes, and Unix file type do not consistently identify a file or directory.",
-                    "Recreate the archive with consistent file-type metadata; extractors may choose different interpretations.",
-                )
+        unix_kind = stat.S_IFMT(entry.external >> 16) if entry.creator == 3 else 0
+        if (
+            (entry.external & 0x10 and not name.endswith("/"))
+            or (unix_kind in (stat.S_IFREG, stat.S_IFLNK) and entry.directory)
+            or (unix_kind == stat.S_IFDIR and not name.endswith("/"))
+        ):
+            add(
+                "conflicting-file-type",
+                "warning",
+                display,
+                "The filename, DOS attributes, and Unix file type do not consistently identify a file or directory.",
+                "Recreate the archive with consistent file-type metadata; extractors may choose different interpretations.",
+            )
         if entry.flags & (1 | 64):
             add(
                 "encrypted-entry",
@@ -570,6 +590,7 @@ def scan_archive(
                 lambda n: "/".join(p.rstrip(" .").casefold() for p in n.split("/")),
                 "Paths may alias after Windows trailing-character handling and conservative case folding.",
             )
+    issues = [issue for severity in priorities for issue in retained[severity]]
     if omitted:
         counts["warnings"] += 1
         issues.append(
