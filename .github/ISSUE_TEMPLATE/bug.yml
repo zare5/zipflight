@@ -1,0 +1,22 @@
+name: Report a missed or incorrect check
+description: Help improve a ZIP portability finding.
+body:
+  - type: textarea
+    id: command
+    attributes:
+      label: Command, version, and report
+      description: Remove private filenames before sharing. Use zipflight --version and --format markdown.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior and actual extraction result
+      description: Include the operating system, filesystem, and extraction app/version if known.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Small reproduction
+      description: Prefer a tiny script generating harmless entries over an archive with personal files.
